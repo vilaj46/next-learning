@@ -1,7 +1,6 @@
-// import { Post } from "@/interfaces/post";
 import fs from 'fs'
-import matter from 'gray-matter'
 import { join } from 'path'
+import matter from 'gray-matter'
 
 export type Post = {
 	slug: string

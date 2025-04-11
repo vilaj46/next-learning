@@ -1,58 +1,124 @@
 'use client'
 
-import { MouseEvent, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 
-type TodoDTO = {
-	id: number
-	isComplete: boolean
-	name: null | string
-}
+import {
+	useGetTodos,
+	useGetTodosCursor,
+} from '@/lib/modules/todos/hooks/requests'
+import { isApiResponseSuccess } from '@/lib/utils/http-utils'
+import { TTodo } from '@/lib/modules/todos/types/TTodo'
 
-export default function Home() {
-	const [value, setValue] = useState('')
-	const [todos, setTodos] = useState<Array<TodoDTO>>([])
+const useTodosOffset = (isEnabled: boolean) => {
+	const [offset, setOffset] = useState(0)
+	const [todos, setTodos] = useState<Array<TTodo>>([])
+
+	const getTodoQuery = useGetTodos(
+		{
+			limit: 100,
+			offset,
+		},
+		{
+			enabled: isEnabled,
+		}
+	)
 
 	useEffect(() => {
-		fetch('http://localhost:5189/todos')
-			.then((res) => res.json())
-			.then((data) => setTodos(data))
-			.catch((err) => console.log(err))
-	}, [])
+		if (isApiResponseSuccess(getTodoQuery.data)) {
+			const tSuccess = getTodoQuery.data.result
+			setTodos((t) => t.concat(tSuccess))
+		}
+	}, [getTodoQuery.data])
 
-	const addTodo = (e: MouseEvent<HTMLButtonElement>) => {
-		e.preventDefault()
-
-		fetch('http://localhost:5189/todos', {
-			body: JSON.stringify({
-				id: Math.floor(Math.random() * 100),
-				isComplete: false,
-				name: value,
-			}),
-			headers: {
-				'Content-Type': 'application/json',
-				'Access-Control-Allow-Origin': '*',
-			},
-			method: 'POST',
-		})
+	return {
+		offset,
+		setOffset,
+		todos,
 	}
+}
+
+const useTodosCursor = (isEnabled: boolean) => {
+	const [cursor, setCursor] = useState<null | number>(null)
+	const [todos, setTodos] = useState<Array<TTodo>>([])
+
+	const todosQuery = useGetTodosCursor(
+		{
+			cursor,
+			limit: 100,
+		},
+		{
+			enabled: isEnabled,
+		}
+	)
+
+	useEffect(() => {
+		if (isApiResponseSuccess(todosQuery.data)) {
+			const tSuccess = todosQuery.data.result
+			setTodos((t) => t.concat(tSuccess.todos))
+		}
+	}, [todosQuery.data])
+
+	return {
+		setCursor,
+		todos,
+		todosQuery,
+	}
+}
+
+export default function Todos() {
+	const fetchType: number = -1
+
+	const {
+		offset,
+		setOffset,
+		todos: offsetTodos,
+	} = useTodosOffset(fetchType === 0)
+
+	const { setCursor, todosQuery, todos } = useTodosCursor(fetchType === 1)
 
 	return (
 		<div>
 			<h1>Todos</h1>
-			<form>
-				<input
-					onChange={(e) => setValue(e.target.value)}
-					type='text'
-					value={value}
-					style={{
-						border: '1px solid red',
-					}}
-				/>
-				<button onClick={addTodo}>Add todo</button>
-			</form>
-			{todos.map((todo) => (
-				<li key={todo.id}>{todo.name ?? 'UNKNOWN'}</li>
-			))}
+			{fetchType === 1 ? (
+				<>
+					<button
+						onClick={() => {
+							if (isApiResponseSuccess(todosQuery.data)) {
+								const tSuccess = todosQuery.data.result
+								setCursor(tSuccess.nextCursor)
+							}
+						}}
+					>
+						Get more! {offset}
+					</button>
+
+					<ul>
+						{todos.map((todo) => (
+							<li key={todo.id}>
+								{todo.todo} - {todo.id}
+							</li>
+						))}
+					</ul>
+				</>
+			) : (
+				<>
+					<button
+						onClick={() => {
+							setOffset((co) => co + 100)
+						}}
+					>
+						Get more! {offset}
+					</button>
+
+					<ul>
+						{offsetTodos.map((todo) => (
+							<li key={todo.id}>
+								{todo.todo} - {todo.id}
+							</li>
+						))}
+					</ul>
+				</>
+			)}
 		</div>
 	)
 }
